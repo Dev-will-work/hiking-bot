@@ -13,7 +13,7 @@ from telegram.ext import (
     Updater, MessageHandler, Filters, ConversationHandler,
 )
 
-from hikingbot.config import TELEGRAM_BOT_TOKEN
+from config import TELEGRAM_BOT_TOKEN
 
 FIRST, SECOND, THIRD = range(3)
 
@@ -246,7 +246,7 @@ def feedback_handler(update: Update, _: CallbackContext):
     elif result == "random" or result in results.keys():
         if result == "random":
             result = random.sample(results.keys(), 1)[0]
-        bot.send_photo(update.callback_query.message.chat_id, photo=open(f"./hikingbot/results/{result}.jpg", 'rb'),
+        bot.send_photo(update.callback_query.message.chat_id, photo=open(f"./results/{result}.jpg", 'rb'),
                        caption=f"Похоже, ты...\n{results[result]}\n\nХочешь еще раз попробую предсказать, или не? 🤔",
                        reply_markup=InlineKeyboardMarkup(keyboard))
         your_destiny = ""
