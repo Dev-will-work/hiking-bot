@@ -1,7 +1,6 @@
 import logging
 import random
 import re
-from itertools import tee
 
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
@@ -64,14 +63,6 @@ results = {'sleep': """Ловец снов в пролёте 😴
 И еще 32 дерева посрубали чтоб другим хватило 😉
 Только полностью сухие брали, само собой, такие же как мы будем на завтрашнее утро 💧☠"""}
 
-test_message_bank = iter(["Итак, начнём короткий тест:\nТы любишь ходить и гулять?",
-                          "Открытость к людям и общению с ними, нравится такое?",
-                          "Сила и выносливость, это про тебя?",
-                          "А с ответственностью как дела?"])
-test_message_bank, shadow_message_bank = tee(test_message_bank)
-
-your_destiny = ""
-
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
@@ -79,31 +70,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
-
-def calculate_result() -> str:
-    mapping = {'----': 'sleep',
-               '---+': 'photo',
-               '--+-': 'clothes',
-               '--++': 'guitar',
-               '-+--': 'friends',
-               '-+-+': 'food',
-               '-++-': 'car',
-               '-+++': 'car',
-               '+---': 'forest',
-               '+--+': 'photo',
-               '+-+-': 'clothes',
-               '+-++': 'guitar',
-               '++--': 'friends',
-               '++-+': 'fire',
-               '+++-': 'car',
-               '++++': 'axe'
-               }
-    return mapping[your_destiny]
-
-
-def start_command_handler(update: Update, _: CallbackContext) -> int:
+def start_command_handler(update: Update, ctx: CallbackContext) -> int:
     """ Send a message when the command /start is issued."""
     user = update.message.from_user
+
+    test_message_bank = iter(["Итак, начнём короткий тест:\nТы любишь ходить и гулять?",
+                              "Открытость к людям и общению с ними, нравится такое?",
+                              "Сила и выносливость, это про тебя?",
+                              "А с ответственностью как дела?"])
+
+    ctx.user_data['test_bank'] = test_message_bank
+    ctx.user_data['destiny'] = ""
+
     logger.info("Пользователь %s начал разговор", user.first_name)
     keyboard = [
         [
@@ -121,7 +99,7 @@ def start_command_handler(update: Update, _: CallbackContext) -> int:
     return FIRST
 
 
-def continuation_handler(update: Update, _: CallbackContext):
+def continuation_handler(update: Update, ctx: CallbackContext):
     result = update.callback_query.data.split()[1]
     update.callback_query.answer()
     if result == "question":
@@ -157,7 +135,7 @@ def continuation_handler(update: Update, _: CallbackContext):
         ]
         message_content = "Ладненько, тогда выбери фразу себе по душе 😇"
     else:
-        raise ValueError(f"Unknown answer {result}!")
+        return
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     bot.send_message(update.callback_query.message.chat_id,
@@ -166,11 +144,18 @@ def continuation_handler(update: Update, _: CallbackContext):
     return SECOND
 
 
-def result_handler(update: Update, _: CallbackContext):
+def result_handler(update: Update, ctx: CallbackContext):
     result = update.callback_query.data.split()[1]
     update.callback_query.answer()
 
     if result == "yes":
+        test_message_bank = iter(["Итак, начнём короткий тест:\nТы любишь ходить и гулять?",
+                                  "Открытость к людям и общению с ними, нравится такое?",
+                                  "Сила и выносливость, это про тебя?",
+                                  "А с ответственностью как дела?"])
+        ctx.user_data['test_bank'] = test_message_bank
+        ctx.user_data['destiny'] = ""
+
         keyboard = [
             [
                 InlineKeyboardButton("А кто я?", callback_data="answer question"),
@@ -195,9 +180,7 @@ def result_handler(update: Update, _: CallbackContext):
         return ConversationHandler.END
 
 
-def feedback_handler(update: Update, _: CallbackContext):
-    global your_destiny
-    global shadow_message_bank, test_message_bank
+def feedback_handler(update: Update, ctx: CallbackContext):
     result = update.callback_query.data.split()[1]
     update.callback_query.answer()
 
@@ -216,17 +199,34 @@ def feedback_handler(update: Update, _: CallbackContext):
             ]
         ]
         if result == "yes":
-            your_destiny += '+'
+            ctx.user_data['destiny'] += '+'
         elif result == "no":
-            your_destiny += '-'
+            ctx.user_data['destiny'] += '-'
 
         try:
-            next_text = next(test_message_bank)
+            next_text = next(ctx.user_data['test_bank'])
         except StopIteration:
+            mapping = {'----': 'sleep',
+                       '---+': 'photo',
+                       '--+-': 'clothes',
+                       '--++': 'guitar',
+                       '-+--': 'friends',
+                       '-+-+': 'food',
+                       '-++-': 'car',
+                       '-+++': 'car',
+                       '+---': 'forest',
+                       '+--+': 'photo',
+                       '+-+-': 'clothes',
+                       '+-++': 'guitar',
+                       '++--': 'friends',
+                       '++-+': 'fire',
+                       '+++-': 'car',
+                       '++++': 'axe'
+                       }
             keyboard = [
                 [
-                    InlineKeyboardButton("Да, и правда", callback_data=f"answer {calculate_result()}"),
-                    InlineKeyboardButton("Нее, долго было!! 👹", callback_data=f"answer {calculate_result()}"),
+                    InlineKeyboardButton("Да, и правда", callback_data=f"answer {mapping[ctx.user_data['destiny']]}"),
+                    InlineKeyboardButton("Нее, долго было!! 👹", callback_data=f"answer {mapping[ctx.user_data['destiny']]}"),
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -234,8 +234,6 @@ def feedback_handler(update: Update, _: CallbackContext):
                              text="Вот и всё!) Недолго, верно?)", reply_markup=reply_markup)
 
             return SECOND
-
-        print(f"Now {your_destiny}")
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         bot.send_message(update.callback_query.message.chat_id,
@@ -249,10 +247,8 @@ def feedback_handler(update: Update, _: CallbackContext):
         bot.send_photo(update.callback_query.message.chat_id, photo=open(f"./hikingbot/results/{result}.jpg", 'rb'),
                        caption=f"Похоже, ты...\n{results[result]}\n\nХочешь еще раз попробую предсказать, или не? 🤔",
                        reply_markup=InlineKeyboardMarkup(keyboard))
-        your_destiny = ""
-        test_message_bank, shadow_message_bank = tee(shadow_message_bank)
     else:
-        raise ValueError(f"Bad result! Maybe path traversal or something unknown!")
+        return
 
     return THIRD
 
